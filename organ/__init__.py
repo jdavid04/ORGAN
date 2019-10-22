@@ -28,7 +28,7 @@ class ORGAN(object):
     and the backend is performed.
     """
 
-    def __init__(self, name, metrics_module, params={},
+    def __init__(self, name, metrics_module='mol_metrics', params={},
                  verbose=True):
         """Parameter initialization.
 
@@ -42,7 +42,22 @@ class ORGAN(object):
             the metrics.
 
             - params. Optional. Dictionary containing the parameters
-            that the user whishes to specify.
+            that the user wishes to specify.
+
+            The valid parameters are as follows:
+
+            'WGAN' (bool) : Whether or not to use a WGAN penalty
+            'PRETRAIN_GEN_EPOCHS' (int) : Number of pre-training epochs to perform for the generator
+            'PRETRAIN_DIS_EPOCHS' (int) : Number of pre-training epochs to perform for the generator
+            'GEN_ITERATIONS' (int) : Training iterations for generator
+            'GEN_BATCH_SIZE' (int) : Batch size for generator network
+            'SEED' (int) : random seed to be used
+            'DIS_BATCH_SIZE' (int) : Batch size for discriminator network
+            'DIS_EPOCHS' (int) : Number of epochs to perform for discriminator
+            'SAMPLE_NUM' (int) : Number of samples to generate during training
+            'LAMBDA' : (float) : controls tradeoff between objective and generation
+
+            There are other parameters, which are likely of lesser importance, see init code.
 
             - verbose. Boolean specifying whether output must be
             produced in-line.
@@ -66,7 +81,7 @@ class ORGAN(object):
         if 'WGAN' in params:
             self.WGAN = params['WGAN']
         else:
-            self.WGAN = False
+            self.WGAN = True
 
         if 'PRETRAIN_GEN_EPOCHS' in params:
             self.PRETRAIN_GEN_EPOCHS = params['PRETRAIN_GEN_EPOCHS']
@@ -205,7 +220,7 @@ class ORGAN(object):
         self.SESS_LOADED = False
         self.USERDEF_METRIC = False
 
-    def load_training_set(self, file):
+    def load_training_set(self, file, num_samples=None):
         """Specifies a training set for the model. It also finishes
         the model set up, as some of the internal parameters require
         knowledge of the vocabulary.
@@ -219,6 +234,8 @@ class ORGAN(object):
 
         # Load training set
         self.train_samples = mm.load_train_data(file)
+        if num_samples is not None:
+            self.train_samples = self.train_samples[:num_samples]
 
         # Process and create vocabulary
         self.char_dict, self.ord_dict = mm.build_vocab(self.train_samples)
@@ -864,6 +881,7 @@ class ORGAN(object):
                         self.PREFIX), index=False)
                 for key, val in losses.items():
                     v_arr = np.array(val)
+                    os.makedirs('results', exist_ok=True)
                     np.save('results/{}_{}.npy'.format(self.PREFIX, key), v_arr)
 
                 if nbatch is None:
