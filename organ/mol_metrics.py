@@ -312,7 +312,7 @@ def build_vocab(smiles=None, pad_char='_', start_char='^'):
     # positive charge +, u (+2), y (+3)
     chars = chars + ['[', ']', '+', 'u', 'y', '~', '!', '&', 'Z', 'X']
     # bonding
-    chars = chars + ['-', '=', '#']
+    chars = chars + ['-', '=', '#', '.']
     # branches
     chars = chars + ['(', ')']
     # cycles

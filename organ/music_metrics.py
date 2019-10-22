@@ -140,7 +140,7 @@ def verified_and_below(seq, max_len):
 
 
 def save_pkl(name, sequences):
-    folder = os.path.join('/n/home15/bsanchezlengeling/couteiral/music/ORGAN/',
+    folder = os.path.join('ORGAN',
 			  'epoch_data')
     if not os.path.exists(folder):
         os.makedirs(folder)

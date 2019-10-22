@@ -732,6 +732,7 @@ class ORGAN(object):
         if not self.PRETRAINED and not self.SESS_LOADED:
 
             self.sess.run(tf.global_variables_initializer())
+            # TODO: Issue with pre-train using music metrics/data
             self.pretrain()
 
             if not os.path.exists(ckpt_dir):
@@ -781,6 +782,7 @@ class ORGAN(object):
                 def batch_reward(samples, train_samples=None):
                     decoded = [mm.decode(sample, self.ord_dict)
                                for sample in samples]
+
                     pct_unique = len(list(set(decoded))) / float(len(decoded))
                     rewards = reward_func(decoded, self.train_samples)
                     weights = np.array([pct_unique /
@@ -862,7 +864,7 @@ class ORGAN(object):
                         self.PREFIX), index=False)
                 for key, val in losses.items():
                     v_arr = np.array(val)
-                    np.save('{}_{}.npy'.format(self.PREFIX, key), v_arr)
+                    np.save('results/{}_{}.npy'.format(self.PREFIX, key), v_arr)
 
                 if nbatch is None:
                     label = 'final'
