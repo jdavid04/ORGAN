@@ -27,7 +27,7 @@ class ORGAN(object):
     and the backend is performed.
     """
 
-    def __init__(self, name, metrics_module='mol_metrics', params={},
+    def __init__(self, name, metrics_module='mol_metrics',  params={},
                  verbose=True):
         """Parameter initialization.
 
@@ -322,8 +322,8 @@ class ORGAN(object):
                 grad_clip=self.DIS_GRAD_CLIP)
 
         # run tensorflow
-        self.sess = tf.InteractiveSession()
-        #self.sess = tf.Session(config=self.config)
+        #self.sess = tf.InteractiveSession()
+        self.sess = tf.Session(config=self.config)
 
         #self.tb_write = tf.summary.FileWriter(self.log_dir)
 
@@ -679,7 +679,7 @@ class ORGAN(object):
             mean_g_loss = np.mean(supervised_g_losses)
             t_bar.set_postfix(G_loss=mean_g_loss)
 
-        samples = self.generate_samples(self.SAMPLE_NUM)
+        samples = self.generate_samples(self.SAMPLE_NUM // self.GEN_BATCH_SIZE)
         self.mle_loader.create_batches(samples)
 
         if self.LAMBDA != 0:
@@ -688,7 +688,7 @@ class ORGAN(object):
                 print('\nDISCRIMINATOR PRETRAINING')
             t_bar = trange(self.PRETRAIN_DIS_EPOCHS)
             for i in t_bar:
-                negative_samples = self.generate_samples(self.POSITIVE_NUM)
+                negative_samples = self.generate_samples(self.POSITIVE_NUM// self.GEN_BATCH_SIZE)
                 dis_x_train, dis_y_train = self.dis_loader.load_train_data(
                     self.positive_samples, negative_samples)
                 dis_batches = self.dis_loader.batch_iter(
@@ -708,7 +708,7 @@ class ORGAN(object):
         self.PRETRAINED = True
         return
 
-    def generate_samples(self, num):
+    def generate_samples(self, num_batches):
         """Generates molecules.
 
         Arguments
@@ -720,7 +720,7 @@ class ORGAN(object):
 
         generated_samples = []
 
-        for _ in range(int(num / self.GEN_BATCH_SIZE)):
+        for _ in range(num_batches):
             generated_samples.extend(self.generator.generate(self.sess))
 
         return generated_samples
@@ -808,9 +808,9 @@ class ORGAN(object):
                     return rewards * weights
 
             if nbatch % 10 == 0:
-                gen_samples = self.generate_samples(self.BIG_SAMPLE_NUM)
+                gen_samples = self.generate_samples(self.BIG_SAMPLE_NUM // self.GEN_BATCH_SIZE)
             else:
-                gen_samples = self.generate_samples(self.SAMPLE_NUM)
+                gen_samples = self.generate_samples(self.SAMPLE_NUM // self.GEN_BATCH_SIZE)
             self.gen_loader.create_batches(gen_samples)
             results['Batch'] = nbatch
             print('Batch n. {}'.format(nbatch))
@@ -842,7 +842,7 @@ class ORGAN(object):
                 for i in range(self.DIS_EPOCHS):
                     print('Discriminator epoch {}...'.format(i + 1))
 
-                    negative_samples = self.generate_samples(self.POSITIVE_NUM)
+                    negative_samples = self.generate_samples(self.POSITIVE_NUM // self.GEN_BATCH_SIZE)
                     dis_x_train, dis_y_train = self.dis_loader.load_train_data(
                         self.positive_samples, negative_samples)
                     dis_batches = self.dis_loader.batch_iter(
@@ -876,7 +876,7 @@ class ORGAN(object):
 
                 if results_rows is not None:
                     df = pd.DataFrame(results_rows)
-                    df.to_csv('{}_results.csv'.format(
+                    df.to_csv('results/{}_results.csv'.format(
                         self.PREFIX), index=False)
                 for key, val in losses.items():
                     v_arr = np.array(val)

@@ -1,9 +1,14 @@
 from organ.ORGAN_0 import ORGAN
+import tensorflow as tf
+import os
+import organ.mol_metrics as mm
 
-DEFAULT_CONFIG = {'name' : 'test', 'params' : {'PRETRAIN_DIS_EPOCHS': 2, 'PRETRAIN_GEN_EPOCHS' : 2}}
+DEFAULT_CONFIG = {'name' : 'test', 'params' : {'PRETRAIN_DIS_EPOCHS': 2, 'PRETRAIN_GEN_EPOCHS': 2,
+                                               'GEN_ITERATIONS' : 1, 'DIS_EPOCHS' : 1, 'LAMBDA' : 0.5,
+                                               'GEN_BATCH_SIZE' : 32, 'DIS_BATCH_SIZE' : 32}}
 
 class Organ:
-    def __init__(self, config_dict=DEFAULT_CONFIG):
+    def __init__(self, training_data, max_smiles=None, config_dict=DEFAULT_CONFIG):
 
         """
         Constructor wrapping that of the source ORGAN code. The config dict should contain the parameters
@@ -13,6 +18,11 @@ class Organ:
 
         - name. String which will be used to identify the
         model in any folders or files created.
+
+        - input_data: csv file listing the training smiles with "smiles" header.
+
+        - max_smiles: Maximum number of smiles to use from the input data (for prototyping purposes) - by default
+        None, which will use all of the data.
 
         - metrics_module. String identifying the module containing
         the metrics.
@@ -41,32 +51,103 @@ class Organ:
         :param config_dict: Dictionary specifying the parameters to be used to initialize ORGAN.
         """
         self.model = ORGAN(**config_dict)
+        self.checkpoint_dir  = config_dict.get("checkpoint_dir", "ckpt")
         self.config_dict = config_dict
 
-    def train(self, input_data, num_iterations=1):
+        # Load and process data, if applicable. Finalize setup.
+        input = self.__process_data(training_data)
+        if max_smiles is not None:
+            max_smiles += 1  # The first input row is just the header, so add one
+        self.model.load_training_set(input, num_samples=max_smiles)
 
-        # Load and process data, if applicable
-        input = self.__process_data(input_data)
-        self.model.load_training_set(input, num_samples=None)
+    def train(self, num_iterations=1):
+
+        """
+        Light training wrapper for the ORGAN code taken from the original paper.
 
 
+        :param num_iterations: Number of training iterations to perform.
+        :return: None
+        """
         self.model.set_training_program(['novelty'], [num_iterations]) # TODO: Decide what to do here with objectives
         self.model.load_metrics()
-        self.model.train(ckpt_dir=self.config_dict.get('checkpoint_dir', 'ckpt'))
+        self.model.train(ckpt_dir=self.checkpoint_dir)
 
+
+
+    def sample(self, num_samples=1):
+        """
+        Sample some smiles from the model.
+
+        :param num_samples: Number of smiles to generate.
+        :return: Generated smiles.
+        """
+
+        # The ORGAN model can only sample multiples of batch_size number of samples
+        num_batches = num_samples // self.model.GEN_BATCH_SIZE
+        if num_samples % self.model.GEN_BATCH_SIZE > 0:
+            num_batches += 1
+
+        samples = self.model.generate_samples(num_batches)[:num_samples]
+        samples = [mm.decode(sample, self.model.ord_dict) for sample in samples]
+
+        return samples
 
     def __process_data(self, input_data):
+        """
+        Optional pre-processing code. Currently does nothing and assumes input is standardized.
+
+        :param input_data:
+        :return: input_data
+        """
         return input_data
 
-    def save(self, save_path):
-        pass
+    def save(self):
+        """
+        Save the current model to checkpoint_dir using tensorflow's Saver utilities.
 
-    def load(self, load_path):
-        pass
+        :return: None
+        """
+        model_saver = tf.train.Saver()
+
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
+        ckpt_file = os.path.join(
+            self.checkpoint_dir, '{}.ckpt'.format(self.model.PREFIX))
+
+        model_saver.save(self.model.sess, ckpt_file)
+
+    def load_weights(self, load_path = None):
+        """
+        Loads a saved model from load_path and updates weights accordingly. If None, defaults to checkpoint dir/name.ckpt for this class.
+        Note that the class should be initialized with the SAME hyper-parameters that were used for training.
+        This function just loads the tuned model parameters.
+
+        :param load_path (str): Path from which to load the model.
+        :return: None
+        """
+
+        if load_path is None:
+            load_path = os.path.join(self.checkpoint_dir, self.model.PREFIX + ".ckpt")
+
+        self.model.load_prev_training(load_path)
 
 
 if __name__ == '__main__':
-    #Debug
-    organ = Organ()
-    organ.train('data/zinc.csv')
+    # Sample execution
+    organ = Organ(training_data='data/zinc.csv', max_smiles=32, config_dict=DEFAULT_CONFIG)
+
+    print("Training ORGAN....")
+    organ.train()
+
+    print("Training finished. Saving model weights to disk.")
+    organ.save()
+
+    print("Saving finished. Loading model from disk.")
+    organ2 = Organ(training_data='data/zinc.csv', max_smiles=32, config_dict=DEFAULT_CONFIG)
+    organ2.load_weights()
+    samples = organ2.sample(num_samples=None)
+
+    print("Model loaded. Example samples generated: ")
+    print(samples)
 
